@@ -10,7 +10,6 @@ import java.io.IOException;
 /**
  *
  * @author michel
- *  Modified by Anna Vilanova
  */
 public class Volume {
     
@@ -18,56 +17,46 @@ public class Volume {
 	///////////////// TO BE IMPLEMENTED //////////////////////////////////
 	//////////////////////////////////////////////////////////////////////
 	
-    //This function linearly interpolates the value g0 and g1 given the factor (t) 
+	//This function linearly interpolates the value g0 and g1 given the factor (t) 
     //the result is returned. You can use it to tri-linearly interpolate the values 
-    private double interpolate(double g0, double g1, double factor) {
-        double result = g0*(1-factor) + g1*factor;
+	private float interpolate(float g0, float g1, float factor) {
+        float result = (1 - factor)*g0 + factor*g1;
         return result; 
     }
-    
-    private double bilinearInterpolate(double g00, double g01, double g10, double g11, double factor0, double factor1){
-        double fxy1 = interpolate(g00, g10, factor0);
-        double fxy2 = interpolate(g01, g11, factor0);
-        double result = interpolate(fxy1, fxy2, factor1);
-        return result;
-    }
 	
-    //You have to implement the trilinear interpolation of the volume
-    //First implement the interpolated function above
-    // At the moment the function does takes just the lowest voxel value
-    // to trilinear interpolation
-    public short getVoxelLinearInterpolate(double[] coord) {
+	//You have to implement the trilinear interpolation of the volume
+	//First implement the interpolated function above
+	public short getVoxelLinearInterpolate(double[] coord) {
+        if (coord[0] < 0 || coord[0] > (dimX-2) || coord[1] < 0 || coord[1] > (dimY-2)
+                || coord[2] < 0 || coord[2] > (dimZ-2)) {
+            return 0;
+        }
         /* notice that in this framework we assume that the distance between neighbouring voxels is 1 in all directions*/
-        int x = (int) Math.floor(coord[0]);
+        int x = (int) Math.floor(coord[0]); 
         int y = (int) Math.floor(coord[1]);
         int z = (int) Math.floor(coord[2]);
-        double t0 = coord[0] - x;
-        double t1 = coord[1] - y;
-        double t2 = coord[2] - z;
         
-        short g000 = getVoxel(x, y, z);
-        short g100 = getVoxel(x+1, y, z);
-        short g010 = getVoxel(x, y+1, z);
-        short g110 = getVoxel(x+1, y+1, z);
-        short g001 = getVoxel(x, y, z+1);
-        short g101 = getVoxel(x+1, y, z+1);
-        short g011 = getVoxel(x, y+1, z+1);
-        short g111 = getVoxel(x+1, y+1, z+1);
+        float fac_x = (float) coord[0] - x;
+        float fac_y = (float) coord[1] - y;
+        float fac_z = (float) coord[2] - z;
+
+        float t0 = interpolate(getVoxel(x, y, z), getVoxel(x+1, y, z), fac_x);
+        float t1 = interpolate(getVoxel(x, y+1, z), getVoxel(x+1, y+1, z), fac_x);
+        float t2 = interpolate(getVoxel(x, y, z+1), getVoxel(x+1, y, z+1), fac_x);
+        float t3 = interpolate(getVoxel(x, y+1, z+1), getVoxel(x+1, y+1, z+1), fac_x);
+        float t4 = interpolate(t0, t1, fac_y);
+        float t5 = interpolate(t2, t3, fac_y);
+        float t6 = interpolate(t4, t5, fac_z);
         
-        double bottomInterpolation = bilinearInterpolate(g000, g100, g010, g110, t0, t1);
-        double topInterpolation = bilinearInterpolate(g001, g101, g011, g111, t0, t1);
-        double result = interpolate(bottomInterpolation, topInterpolation, t2);
-        
-        return (short)result;            
+        return (short)t6; 
     }
 		
-    //////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////
-    //////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////
+	//////////////////////////////////////////////////////////////////////
 
-    //Do NOT modify this function
-    // This function is an example and does a nearest neighbour interpolation
-    public short getVoxelNN(double[] coord) {
+	//Do NOT modify this function
+	public short getVoxelNN(double[] coord) {
         if (coord[0] < 0 || coord[0] > (dimX-1) || coord[1] < 0 || coord[1] > (dimY-1)
                 || coord[2] < 0 || coord[2] > (dimZ-1)) {
             return 0;

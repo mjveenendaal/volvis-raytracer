@@ -20,7 +20,6 @@ import volvis.TransferFunction2D;
 /**
  *
  * @author michel
- *  Modified by Anna Vilanova
  */
 public class TransferFunction2DView extends javax.swing.JPanel {
 

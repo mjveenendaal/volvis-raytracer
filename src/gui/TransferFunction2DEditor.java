@@ -19,7 +19,6 @@ import volvis.TransferFunction2D;
 /**
  *
  * @author michel
- *   Modified by Anna Vilanova
  */
 public class TransferFunction2DEditor extends javax.swing.JPanel {
 
