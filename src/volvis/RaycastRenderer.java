@@ -518,22 +518,22 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     public void visualize(GL2 gl) {
 
         double[] viewMatrix = new double[4 * 4];
-        
+
         if (volume == null) {
             return;
         }
-        	
+
          drawBoundingBox(gl);
 
         gl.glGetDoublev(GL2.GL_MODELVIEW_MATRIX, viewMatrix, 0);
 
         long startTime = System.currentTimeMillis();
         if (slicerMode) {
-            slicer(viewMatrix);    
+            slicer(viewMatrix);
         } else {
             raycast(viewMatrix);
         }
-        
+
         long endTime = System.currentTimeMillis();
         double runningTime = (endTime - startTime);
         panel.setSpeedLabel(Double.toString(runningTime));
@@ -549,17 +549,19 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         texture.enable(gl);
         texture.bind(gl);
         double halfWidth = image.getWidth() / 2.0;
+        double maxTexWidth = image.getWidth();
+        double maxTexHeight = image.getHeight();
         gl.glPushMatrix();
         gl.glLoadIdentity();
         gl.glBegin(GL2.GL_QUADS);
         gl.glColor4f(1.0f, 1.0f, 1.0f, 1.0f);
         gl.glTexCoord2d(0.0, 0.0);
         gl.glVertex3d(-halfWidth, -halfWidth, 0.0);
-        gl.glTexCoord2d(0.0, 1.0);
+        gl.glTexCoord2d(0.0, maxTexHeight);
         gl.glVertex3d(-halfWidth, halfWidth, 0.0);
-        gl.glTexCoord2d(1.0, 1.0);
+        gl.glTexCoord2d(maxTexWidth, maxTexHeight);
         gl.glVertex3d(halfWidth, halfWidth, 0.0);
-        gl.glTexCoord2d(1.0, 0.0);
+        gl.glTexCoord2d(maxTexWidth, 0.0);
         gl.glVertex3d(halfWidth, -halfWidth, 0.0);
         gl.glEnd();
         texture.disable(gl);
