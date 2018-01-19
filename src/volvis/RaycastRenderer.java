@@ -102,16 +102,67 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
     // sampleStep indicates the distance between samples
     // To be implemented
     int traceRayMIP(double[] entryPoint, double[] exitPoint, double[] rayVector, double sampleStep) {
-    	//Hint: compute the increment and the number of samples you need and iterate over them.
-                
-        //You need to iterate through the ray. Starting at the entry point.
- 
-        // Example color, you have to substitute it by the result of the MIP 
-        double r=1;
-        double g=0;
-        double b=0;
-        double alpha=1;
-                
+
+        //Temporary sample position 
+        double[] currentPos = new double[3];
+        VectorMath.setVector(currentPos, startPoint[0], startPoint[1], startPoint[2]);
+        
+        double accumulator = 0;
+        for (int k = 0; k < nrSamples; k++) {
+            currentPos[0] = startPoint[0] + k * sampleStep * direction[0];
+            currentPos[1] = startPoint[1] + k * sampleStep * direction[1];
+            currentPos[2] = startPoint[2] + k * sampleStep * direction[2];
+            
+            double value = volume.getVoxelLinearInterpolate(currentPos)/255.;
+            if (value > accumulator) {
+                accumulator = value;
+            }
+        }
+
+        double alpha;
+        double r, g, b;
+        if (accumulator > 0.0) { // if the maximum = 0 make the voxel transparent
+            alpha = 1.0;
+        } else {
+            alpha = 0.0;
+        }
+        r = g = b = accumulator;
+        int color = computeImageColor(r,g,b,alpha);
+        return color;
+    }
+    
+    int traceRay(double[] entryPoint, double[] exitPoint, double[] rayVector, double sampleStep) {
+        //compute the increment and the number of samples
+        double[] increments = new double[3];
+        VectorMath.setVector(increments, rayVector[0] * sampleStep, rayVector[1] * sampleStep, rayVector[2] * sampleStep);
+        
+        double distance = VectorMath.distance(entryPoint, exitPoint);
+        int nrSamples = 1 + (int) Math.floor(VectorMath.distance(entryPoint, exitPoint) / sampleStep);
+
+        //the current position is initialized as the entry point
+        double[] currentPos = new double[3];
+        VectorMath.setVector(currentPos, entryPoint[0], entryPoint[1], entryPoint[2]);
+        
+        double accumulator = 0;
+        do {
+            double value = volume.getVoxelLinearInterpolate(currentPos)/255.;
+            if (value > accumulator) {
+                accumulator = value;
+            }
+            for (int i = 0; i < 3; i++) {
+                currentPos[i] += increments[i];
+            }
+            nrSamples--;
+        } while (nrSamples > 0);
+
+        double alpha;
+        double r, g, b;
+        if (accumulator > 0.0) { // if the maximum = 0 make the voxel transparent
+            alpha = 1.0;
+        } else {
+            alpha = 0.0;
+        }
+        r = g = b = accumulator;
         int color = computeImageColor(r,g,b,alpha);
         return color;
     }
@@ -122,16 +173,74 @@ public class RaycastRenderer extends Renderer implements TFChangeListener {
         double[] lightVector = new double[3];
         double[] halfVector = new double[3];
         //the light vector is directed toward the view point (which is the source of the light)
-        //half vector is used to speed up the phong shading computation see slides
+        //half vector is used to speed up the phong shading computation
         getLightVector(lightVector,halfVector,rayVector);
         
-        // You need to implement the rest of the function for compositing.    
+        //compute increments along the ray for each step in a back to front fashion
+        double[] increments = new double[3];
+        computeIncrementsB2F(increments, rayVector, sampleStep);
+        //compute the number of steps
+        int nrSamples = 1 + (int) Math.floor(VectorMath.distance(entryPoint, exitPoint) / sampleStep);
 
-        // Example color you have to substitute it by the result of the MIP 
-        double r=1;
-        double g=1;
-        double b=0;
-        double alpha=1; 
+        //I use a back-to-front composition, therefore the current position is initialized as the exit point
+        double[] currentPos = new double[3];
+        VectorMath.setVector(currentPos, exitPoint[0], exitPoint[1], exitPoint[2]);
+
+        //Initialization of the colors as floating point values
+        double r, g, b;
+        r = g = b = 0.0;
+        double alpha = 0.0;
+        double opacity = 0;
+        
+        TFColor voxel_color = new TFColor();
+        TFColor colorAux = new TFColor();
+        do {
+            //Gets the value and the gradient in the current position
+            int value = volume.getVoxelLinearInterpolate(currentPos);
+            VoxelGradient gradient = gradients.getGradient(currentPos);
+
+            //Updates the color and the opacity based on the current selection
+            if (compositingMode) {
+                colorAux = tFunc.getColor(value);
+                voxel_color.r =colorAux.r;voxel_color.g =colorAux.g;voxel_color.b =colorAux.b;voxel_color.a =colorAux.a;
+                opacity = voxel_color.a;    
+            }
+            if (tf2dMode) {
+                colorAux = tFunc2D.color;
+                voxel_color.r =colorAux.r;voxel_color.g =colorAux.g;voxel_color.b =colorAux.b;voxel_color.a =colorAux.a;
+                opacity = tFunc2D.color.a;            
+                opacity *= computeLevoyOpacity(tFunc2D.baseIntensity, 
+                   tFunc2D.radius, value, gradient.mag);
+            }
+            if (shadingMode) {
+                if (opacity > 0.0) {
+                    colorAux= computeBlinnShading(voxel_color, gradient, lightVector, halfVector);
+                    voxel_color.r =colorAux.r;voxel_color.g =colorAux.g;voxel_color.b =colorAux.b;voxel_color.a =colorAux.a;
+                }
+            }
+            
+            // Compute the composition with the back-to-front algorithm
+            r = opacity * voxel_color.r + (1.0 - opacity) * r;
+            g = opacity * voxel_color.g + (1.0 - opacity) * g;
+            b = opacity * voxel_color.b + (1.0 - opacity) * b;
+            alpha = opacity + (1.0 - opacity) * alpha;
+            
+
+
+            // front-to-back; note: change sign of increments and entry/exit
+           /*
+             r += voxel_color.a * voxel_color.r * (1.0 - alpha);
+             g += voxel_color.a * voxel_color.g * (1.0 - alpha);
+             b += voxel_color.a * voxel_color.b * (1.0 - alpha);
+             alpha += (1.0-alpha)*voxel_color.a;
+             */
+
+            //update the current position
+            for (int i = 0; i < 3; i++) {
+                currentPos[i] += increments[i];
+            }
+            nrSamples--;
+        } while (nrSamples > 0);
         
         //computes the color
         int color = computeImageColor(r,g,b,alpha);
